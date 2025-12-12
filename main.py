@@ -90,24 +90,42 @@ def main():
     jobs_with_skills = [j for j in all_jobs if j.get("skills")]
     console.print(f"[green]Found skills in {len(jobs_with_skills)} jobs[/green]")
     
-    # Step 4 (Optional): Discover NEW skills with Groq
+    # Step 4 (Optional): Discover NEW skills with Groq and count them
     new_skills = []
+    new_skill_counts = []
     if args.discover_new:
         console.print(f"\n[bold]Step 4:[/bold] Discovering new skills with AI...")
-        sample_descriptions = [
-            j.get("description", "") for j in all_jobs[:20] 
-            if j.get("description")
-        ]
+        
+        # Use ALL job descriptions for discovery
+        all_descriptions = [j.get("description", "") for j in all_jobs if j.get("description")]
         known = get_predefined_skills()
         
         try:
-            new_skills = discover_new_skills(sample_descriptions, known)
+            new_skills = discover_new_skills(all_descriptions, known)
+            
             if new_skills:
-                console.print(f"[green]Discovered {len(new_skills)} new skills:[/green]")
-                for skill in new_skills[:10]:
-                    console.print(f"  • {skill}")
-                if len(new_skills) > 10:
-                    console.print(f"  ... and {len(new_skills) - 10} more")
+                console.print(f"[green]Discovered {len(new_skills)} new skills, counting...[/green]")
+                
+                # Count each discovered skill across ALL jobs
+                total_jobs_with_skills = len(jobs_with_skills) if jobs_with_skills else len(all_jobs)
+                
+                for skill in new_skills:
+                    skill_lower = skill.lower()
+                    count = sum(
+                        1 for j in all_jobs 
+                        if skill_lower in j.get("description", "").lower()
+                    )
+                    if count > 0:
+                        percentage = (count / total_jobs_with_skills) * 100
+                        new_skill_counts.append((skill, count, percentage))
+                        console.print(f"  • {skill}: {count} mentions ({percentage:.1f}%)")
+                
+                # Merge new skills into ranked_skills
+                if new_skill_counts:
+                    ranked_skills.extend(new_skill_counts)
+                    # Re-sort by count
+                    ranked_skills = sorted(ranked_skills, key=lambda x: x[1], reverse=True)
+                    console.print(f"[green]Added {len(new_skill_counts)} new skills to rankings[/green]")
             else:
                 console.print("[dim]No new skills discovered[/dim]")
         except Exception as e:
