@@ -26,17 +26,16 @@ def generate_search_keywords(num_keywords: int = 10) -> List[str]:
     Use Groq AI to generate relevant job search keywords for AI/ML positions.
 
     """
-    prompt = f"""Generate exactly {num_keywords} job search keywords/titles for AI and Machine Learning positions.
+    prompt = f"""Generate exactly {num_keywords} job search keywords/titles related to AI and Machine Learning engineering.
 
-IMPORTANT: Every keyword MUST contain the word "AI" explicitly.
+Include a variety of:
+- AI/ML engineering roles (e.g., "Machine Learning Engineer", "AI Engineer")
+- Data science and research roles (e.g., "Data Scientist", "Research Scientist")  
+- Specialized roles (e.g., "NLP Engineer", "Computer Vision Engineer", "LLM Developer")
+- MLOps and infrastructure roles (e.g., "MLOps Engineer", "ML Platform Engineer")
 
-Include a mix of:
-- Entry to senior level positions (e.g., "AI Engineer", "Senior AI Developer")
-- Different AI specializations (e.g., "AI Research Scientist", "AI Solutions Architect")
-- Both technical and research roles
-
-Return ONLY a JSON array of strings, no other text. Example format:
-["AI Engineer", "Senior AI Developer", "AI Research Scientist"]"""
+Return ONLY a JSON array of strings, no other text.
+Example: ["Machine Learning Engineer", "Data Scientist", "NLP Engineer"]"""
 
     response = get_client().chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -77,11 +76,10 @@ def discover_new_skills(job_descriptions: List[str], known_skills: Set[str]) -> 
     Use Groq AI to discover NEW skills/tools from job descriptions
     that are NOT in the known skills list.
     
-    This is called once with a SAMPLE of job descriptions to find
-    new skills to add to the predefined list.
+    Processes ALL descriptions in chunks of 15 to stay within token limits.
     
     Args:
-        job_descriptions: List of job description texts (sample of ~10-20)
+        job_descriptions: List of job description texts
         known_skills: Set of skills we already know about
         
     Returns:
@@ -90,11 +88,19 @@ def discover_new_skills(job_descriptions: List[str], known_skills: Set[str]) -> 
     if not job_descriptions:
         return []
     
-    # Combine sample descriptions (limit to avoid token limits)
-    combined = "\n---\n".join(job_descriptions[:15])[:8000]
+    all_new_skills = set()
     known_list = ", ".join(sorted(known_skills)[:100])
+    known_lower = {s.lower() for s in known_skills}
     
-    prompt = f"""Analyze these job descriptions and extract technical skills, tools, frameworks, and technologies.
+    # Process in chunks of 15
+    chunk_size = 15
+    total_chunks = (len(job_descriptions) + chunk_size - 1) // chunk_size
+    
+    for i in range(0, len(job_descriptions), chunk_size):
+        chunk = job_descriptions[i:i + chunk_size]
+        combined = "\n---\n".join(chunk)[:8000]
+        
+        prompt = f"""Analyze these job descriptions and extract technical skills, tools, frameworks, and technologies.
 
 IMPORTANT: Only return skills that are NOT in this list of already-known skills:
 {known_list}
@@ -110,32 +116,29 @@ Find NEW skills/tools/frameworks/technologies that are:
 Return ONLY a JSON array of new skill names. If no new skills found, return empty array [].
 Example: ["New Tool 1", "New Framework 2"]"""
 
-    try:
-        response = get_client().chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=500
-        )
-        
-        content = response.choices[0].message.content.strip()
-        
-        match = re.search(r'\[.*\]', content, re.DOTALL)
-        if match:
-            new_skills = json.loads(match.group())
-            # Filter out any that somehow match known skills
-            known_lower = {s.lower() for s in known_skills}
-            filtered = [
-                s for s in new_skills 
-                if isinstance(s, str) and s.strip() 
-                and s.lower() not in known_lower
-                and len(s) > 1
-            ]
-            return filtered
-    except Exception as e:
-        print(f"Error discovering new skills: {e}")
+        try:
+            response = get_client().chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=500
+            )
+            
+            content = response.choices[0].message.content.strip()
+            
+            match = re.search(r'\[.*\]', content, re.DOTALL)
+            if match:
+                new_skills = json.loads(match.group())
+                # Filter and add to set
+                for s in new_skills:
+                    if isinstance(s, str) and s.strip() and s.lower() not in known_lower and len(s) > 1:
+                        all_new_skills.add(s.strip())
+                        known_lower.add(s.lower())  # Prevent duplicates across chunks
+        except Exception as e:
+            print(f"Error in chunk {i//chunk_size + 1}: {e}")
+            continue
     
-    return []
+    return list(all_new_skills)
 
 
 if __name__ == "__main__":
