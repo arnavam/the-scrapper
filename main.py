@@ -2,7 +2,7 @@
 Main entry point for the Indeed AI Jobs Skill Analyzer.
 
 Usage:
-    python main.py [--pages N] [--headless] [--discover-new]
+    python main.py [--results N] [--keywords N] [--discover-new]
     
 Environment Variables:
     GROQ_API_KEY: Your Groq API key (required for keyword generation and skill discovery)
@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from groq_helper import generate_search_keywords, discover_new_skills
-from indeed_scraper import IndeedScraper
+from indeed_scraper import scrape_multiple_keywords, save_jobs_to_csv
 from skill_analyzer import analyze_skills, get_predefined_skills
 from visualize import create_skills_bar_chart, create_category_pie_chart
 
@@ -30,12 +30,10 @@ def main():
     
     # Parse arguments
     parser = argparse.ArgumentParser(description="Scrape Indeed for AI jobs and analyze required skills")
-    parser.add_argument("--pages", type=int, default=2, help="Number of pages to scrape per search term (default: 2)")
+    parser.add_argument("--results", type=int, default=30, help="Results per search keyword (default: 30)")
     parser.add_argument("--keywords", type=int, default=5, help="Number of search keywords to generate (default: 5)")
-    parser.add_argument("--headless", action="store_true", default=True, help="Run browser in headless mode")
-    parser.add_argument("--no-headless", dest="headless", action="store_false", help="Show browser window")
     parser.add_argument("--location", type=str, default="", help="Location filter (e.g., 'Remote', 'New York')")
-    parser.add_argument("--chrome-path", type=str, default=None, help="Path to Chrome/Chromium binary")
+    parser.add_argument("--hours", type=int, default=72, help="Only get jobs posted within this many hours (default: 72)")
     parser.add_argument("--discover-new", action="store_true", help="Use Groq to discover new skills not in predefined list")
     args = parser.parse_args()
     
@@ -63,24 +61,18 @@ def main():
         console.print("[yellow]Using default keywords...[/yellow]")
         keywords = ["AI Engineer", "AI Developer", "AI Research Scientist"]
     
-    # Step 2: Scrape jobs for each keyword
-    console.print(f"\n[bold]Step 2:[/bold] Scraping Indeed ({args.pages} pages per keyword)...")
-    scraper = IndeedScraper(headless=args.headless, chrome_path=args.chrome_path)
-    all_jobs = []
+    # Step 2: Scrape jobs using JobSpy
+    console.print(f"\n[bold]Step 2:[/bold] Scraping Indeed ({args.results} results per keyword)...")
     
-    for keyword in keywords:
-        console.print(f"\n[cyan]Searching: {keyword}[/cyan]")
-        jobs = scraper.scrape_with_details(
-            query=keyword,
-            location=args.location,
-            num_pages=args.pages
-        )
-        console.print(f"  Found {len(jobs)} jobs")
-        all_jobs.extend(jobs)
+    all_jobs = scrape_multiple_keywords(
+        keywords=keywords,
+        location=args.location,
+        results_per_keyword=args.results,
+        hours_old=args.hours
+    )
     
     if not all_jobs:
-        console.print("[red]No jobs found! Indeed may be blocking requests.[/red]")
-        console.print("[yellow]Try running with --no-headless or reducing --pages[/yellow]")
+        console.print("[red]No jobs found![/red]")
         sys.exit(1)
     
     console.print(f"\n[green]Total jobs collected: {len(all_jobs)}[/green]")
@@ -154,7 +146,7 @@ def main():
     with open(f"output/results_{timestamp}.json", "w") as f:
         json.dump(output_data, f, indent=2)
     
-    scraper.save_to_csv(all_jobs, f"output/jobs_{timestamp}.csv")
+    save_jobs_to_csv(all_jobs, f"output/jobs_{timestamp}.csv")
     
     console.print(Panel.fit(
         f"[bold green]Analysis Complete![/bold green]\n\n"

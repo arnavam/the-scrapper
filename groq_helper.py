@@ -24,9 +24,7 @@ def get_client():
 def generate_search_keywords(num_keywords: int = 10) -> List[str]:
     """
     Use Groq AI to generate relevant job search keywords for AI/ML positions.
-    
-    Returns:
-        List of search keywords/job titles
+
     """
     prompt = f"""Generate exactly {num_keywords} job search keywords/titles for AI and Machine Learning positions.
 
@@ -59,6 +57,7 @@ Return ONLY a JSON array of strings, no other text. Example format:
         pass
     
     # Fallback keywords
+    console.print("[yellow]Using fallback keywords...[/yellow]")
     return [
         "AI Engineer",
         "AI Developer", 
