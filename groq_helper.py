@@ -1,9 +1,9 @@
 """
-Groq AI Helper for skill extraction and search keyword generation.
+Groq AI Helper for search keyword generation and discovering NEW skills.
 """
 import os
 from groq import Groq
-from typing import List
+from typing import List, Set
 import json
 import re
 
@@ -51,7 +51,6 @@ Return ONLY a JSON array of strings, no other text. Example format:
     
     # Parse JSON response
     try:
-        # Try to extract JSON array from response
         match = re.search(r'\[.*\]', content, re.DOTALL)
         if match:
             keywords = json.loads(match.group())
@@ -59,47 +58,58 @@ Return ONLY a JSON array of strings, no other text. Example format:
     except json.JSONDecodeError:
         pass
     
-    # Fallback keywords if parsing fails
+    # Fallback keywords
     return [
         "AI Engineer",
-        "Machine Learning Engineer", 
-        "Data Scientist AI",
-        "NLP Engineer",
-        "Computer Vision Engineer",
-        "Deep Learning Engineer",
-        "LLM Developer",
+        "AI Developer", 
         "AI Research Scientist",
-        "MLOps Engineer",
-        "Generative AI Developer"
+        "AI Solutions Architect",
+        "AI Product Manager",
+        "Senior AI Engineer",
+        "AI/ML Engineer",
+        "AI Specialist",
+        "AI Consultant",
+        "AI Team Lead"
     ][:num_keywords]
 
 
-def extract_skills(job_description: str) -> List[str]:
+def discover_new_skills(job_descriptions: List[str], known_skills: Set[str]) -> List[str]:
     """
-    Use Groq AI to dynamically extract skills and tools from a job description.
+    Use Groq AI to discover NEW skills/tools from job descriptions
+    that are NOT in the known skills list.
+    
+    This is called once with a SAMPLE of job descriptions to find
+    new skills to add to the predefined list.
     
     Args:
-        job_description: The full job description text
+        job_descriptions: List of job description texts (sample of ~10-20)
+        known_skills: Set of skills we already know about
         
     Returns:
-        List of extracted skills/tools
+        List of newly discovered skills not in known_skills
     """
-    if not job_description or len(job_description.strip()) < 50:
+    if not job_descriptions:
         return []
     
-    # Truncate very long descriptions
-    truncated = job_description[:4000] if len(job_description) > 4000 else job_description
+    # Combine sample descriptions (limit to avoid token limits)
+    combined = "\n---\n".join(job_descriptions[:15])[:8000]
+    known_list = ", ".join(sorted(known_skills)[:100])
     
-    prompt = f"""Extract all technical skills, tools, frameworks, programming languages, and technologies mentioned in this job description.
+    prompt = f"""Analyze these job descriptions and extract technical skills, tools, frameworks, and technologies.
 
-Job Description:
-{truncated}
+IMPORTANT: Only return skills that are NOT in this list of already-known skills:
+{known_list}
 
-Return ONLY a JSON array of skill/tool names, no other text. Be specific (e.g., "PyTorch" not "deep learning framework").
-Include: programming languages, ML frameworks, cloud platforms, databases, tools, libraries, methodologies.
-Exclude: soft skills, generic terms like "AI" or "machine learning", job requirements like "5 years experience".
+Job Descriptions:
+{combined}
 
-Example format: ["Python", "TensorFlow", "AWS", "Docker", "SQL"]"""
+Find NEW skills/tools/frameworks/technologies that are:
+1. Specific and technical (not generic terms like "programming" or "software")
+2. NOT already in the known skills list above
+3. Mentioned in these job postings
+
+Return ONLY a JSON array of new skill names. If no new skills found, return empty array [].
+Example: ["New Tool 1", "New Framework 2"]"""
 
     try:
         response = get_client().chat.completions.create(
@@ -111,29 +121,25 @@ Example format: ["Python", "TensorFlow", "AWS", "Docker", "SQL"]"""
         
         content = response.choices[0].message.content.strip()
         
-        # Parse JSON response
         match = re.search(r'\[.*\]', content, re.DOTALL)
         if match:
-            skills = json.loads(match.group())
-            # Clean and deduplicate
-            cleaned = []
-            seen = set()
-            for skill in skills:
-                if isinstance(skill, str):
-                    skill_clean = skill.strip()
-                    skill_lower = skill_clean.lower()
-                    if skill_clean and skill_lower not in seen and len(skill_clean) > 1:
-                        cleaned.append(skill_clean)
-                        seen.add(skill_lower)
-            return cleaned
+            new_skills = json.loads(match.group())
+            # Filter out any that somehow match known skills
+            known_lower = {s.lower() for s in known_skills}
+            filtered = [
+                s for s in new_skills 
+                if isinstance(s, str) and s.strip() 
+                and s.lower() not in known_lower
+                and len(s) > 1
+            ]
+            return filtered
     except Exception as e:
-        print(f"Error extracting skills: {e}")
+        print(f"Error discovering new skills: {e}")
     
     return []
 
 
 if __name__ == "__main__":
-    # Test the functions
     from dotenv import load_dotenv
     load_dotenv()
     
@@ -141,12 +147,11 @@ if __name__ == "__main__":
     keywords = generate_search_keywords(5)
     print(f"Generated keywords: {keywords}")
     
-    print("\nTesting skill extraction...")
-    sample_desc = """
-    We are looking for a Machine Learning Engineer with experience in Python, TensorFlow, 
-    and PyTorch. Must have knowledge of AWS, Docker, and Kubernetes. Experience with 
-    NLP, transformers, and LLMs is a plus. Familiarity with SQL, PostgreSQL, and 
-    data pipelines using Apache Spark is required.
-    """
-    skills = extract_skills(sample_desc)
-    print(f"Extracted skills: {skills}")
+    print("\nTesting new skill discovery...")
+    sample_descs = [
+        "Looking for experience with LangGraph and Crew AI for multi-agent systems.",
+        "Must know Streamlit, Gradio for ML demos. Experience with Modal or Replicate a plus.",
+    ]
+    known = {"Python", "TensorFlow", "PyTorch", "LangChain"}
+    new_skills = discover_new_skills(sample_descs, known)
+    print(f"Discovered new skills: {new_skills}")
