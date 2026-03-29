@@ -11,24 +11,51 @@ Scrapes AI/ML job postings from Indeed and uses **Groq AI** to dynamically extra
 
 ## Setup
 
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+Choose your preferred method:
 
-2. **Set your Groq API key:**
-   ```bash
-   export GROQ_API_KEY=your_key_here
-   ```
-   Or create a `.env` file:
-   ```
-   GROQ_API_KEY=your_key_here
-   ```
+**Method 1: Using `uv` (Recommended)**
 
-3. **Run the analyzer:**
-   ```bash
-   python main.py
-   ```
+1.  **Install `uv` (if you haven't already):**
+    ```bash
+    pip install uv
+    ```
+
+2.  **Create a virtual environment and sync dependencies:**
+    ```bash
+    uv venv
+    uv sync
+    ```
+
+**Method 2: Using `pip` and `venv`**
+
+1.  **Create and activate a virtual environment:**
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+---
+
+### Configuration
+
+1.  **Set your Groq API key:**
+    ```bash
+    export GROQ_API_KEY=your_key_here
+    ```
+    Or create a `.env` file:
+    ```
+    GROQ_API_KEY=your_key_here
+    ```
+
+2.  **Run the analyzer:**
+    ```bash
+    python main.py
+    ```
 
 ## Usage Options
 
@@ -64,7 +91,9 @@ the-scrapper/
 ├── indeed_scraper.py # Selenium-based scraper
 ├── skill_analyzer.py # Skill aggregation & ranking
 ├── visualize.py      # Chart generation
-├── requirements.txt  # Dependencies
+├── pyproject.toml    # Project configuration and dependencies
+├── requirements.txt  # Pip dependencies
+├── uv.lock           # uv lock file
 └── output/           # Results directory
 ```
 
