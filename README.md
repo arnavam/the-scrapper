@@ -72,6 +72,9 @@ python main.py --no-headless
 # Filter by location
 python main.py --location "Remote"
 python main.py --location "San Francisco"
+
+# Other Options
+python main.py --discover-new --sites indeed linkedin glassdoor zip_recruiter --results 50 --keywords 10 --job "devops"
 ```
 
 ## Output
